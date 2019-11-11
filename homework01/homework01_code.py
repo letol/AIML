@@ -19,7 +19,7 @@ features_train, features_val, target_train, target_val = train_test_split(featur
 # np.random.seed(0)
 
 # step size in the mesh
-h = .01
+h = .02
 
 # color maps
 cmap_light = ListedColormap(['#FFAAAA', '#AAFFAA', '#AAAAFF'])
