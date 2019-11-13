@@ -193,3 +193,11 @@ plt.show()
 accuracy_test = clf4.score(features_test, target_test)
 print("Best params are C=%f and gamma=%f and corresponding accuracy on test set is %f%%"
       % (best_params['C'], best_params['gamma'], accuracy_test * 100))
+
+# %% K-Fold
+print("\n\t- K-Fold")
+
+features_train = np.concatenate(features_train, features_val)
+target_train = np.concatenate(target_train, target_val)
+
+
