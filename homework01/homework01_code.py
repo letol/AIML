@@ -51,8 +51,10 @@ print("\n\t- K-Nearest Neighbor")
 
 K = [1, 3, 5, 7]
 
-# initialize accuracies list
+# initialize accuracies list and best variables
 accuracy = []
+best_score = 0
+best_K = 1
 
 for i, k in enumerate(K):
     # Apply k-NN
@@ -66,7 +68,12 @@ for i, k in enumerate(K):
     plt.show()
 
     # Evaluate on the validation set
-    accuracy.append(model.score(features_val, target_val))
+    score = model.score(features_val, target_val)
+    accuracy.append(score)
+
+    if score > best_score:
+        best_score = score
+        best_K = k
 
 # Plot accuracy variation
 plt.figure()
@@ -77,23 +84,23 @@ plt.plot(K, accuracy, '-', K, accuracy, 'o')
 plt.title("k-NN accuracy on validation set")
 plt.show()
 
-best_K_index = np.argmax(accuracy)
-
 # Apply K-NN with best K on train+val set
-clf1 = KNeighborsClassifier(n_neighbors=K[best_K_index])
+clf1 = KNeighborsClassifier(n_neighbors=best_K)
 clf1.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
 accuracy_test = clf1.score(features_test, target_test)
-print("Best K is %i and corresponding accuracy on test set is %f%%" % (K[best_K_index], accuracy_test * 100))
+print("Best K is %i and corresponding accuracy on test set is %f%%" % (best_K, accuracy_test * 100))
 
 # %% Linear SVM
 print("\n\t- Linear SVM")
 
 C = [0.001, 0.01, 0.1, 1, 10, 100, 1000]
 
-# initialize accuracies list
+# initialize accuracies list and best variables
 accuracy.clear()
+best_score = 0
+best_C = 1
 
 for i, c in enumerate(C):
     # Apply Linear SVM
@@ -107,7 +114,12 @@ for i, c in enumerate(C):
     plt.show()
 
     # Evaluate on the validation set
-    accuracy.append(model.score(features_val, target_val))
+    score = model.score(features_val, target_val)
+    accuracy.append(score)
+
+    if score > best_score:
+        best_score = score
+        best_C = c
 
 # Plot accuracy variation
 plt.figure()
@@ -118,21 +130,21 @@ plt.semilogx(C, accuracy, '-', C, accuracy, 'o')
 plt.title("Linear SVM accuracy on validation set")
 plt.show()
 
-best_C_index_1 = np.argmax(accuracy)
-
-# Apply Linear SVC owith best C on train+val set
-clf2 = LinearSVC(C=C[best_C_index_1])
+# Apply Linear SVC with best C on train+val set
+clf2 = LinearSVC(C=best_C)
 clf2.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
 accuracy_test = clf2.score(features_test, target_test)
-print("Best C is %f and corresponding accuracy on test set is %f%%" % (C[best_C_index_1], accuracy_test * 100))
+print("Best C is %f and corresponding accuracy on test set is %f%%" % (best_C, accuracy_test * 100))
 
 # %% SVM with RBF kernel
 print("\n\t- SVM with RBF kernel")
 
-# initialize accuracies list
+# initialize accuracies list and best variables
 accuracy.clear()
+best_score = 0
+best_C = 1
 
 for i, c in enumerate(C):
     # Apply SVM
@@ -146,7 +158,12 @@ for i, c in enumerate(C):
     plt.show()
 
     # Evaluate on the validation set
-    accuracy.append(model.score(features_val, target_val))
+    score = model.score(features_val, target_val)
+    accuracy.append(score)
+
+    if score > best_score:
+        best_score = score
+        best_C = c
 
 # Plot accuracy variation
 plt.figure()
@@ -157,15 +174,13 @@ plt.semilogx(C, accuracy, '-', C, accuracy, 'o')
 plt.title("SVM with RBF kernel accuracy on validation set")
 plt.show()
 
-best_C_index_2 = np.argmax(accuracy)
-
 # Apply SVC with best C on train+val set
-clf3 = SVC(C=C[best_C_index_2], gamma='auto', kernel='rbf')
+clf3 = SVC(C=best_C, gamma='auto', kernel='rbf')
 clf3.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
 accuracy_test = clf3.score(features_test, target_test)
-print("Best C is %f and corresponding accuracy on test set is %f%%" % (C[best_C_index_2], accuracy_test * 100))
+print("Best C is %f and corresponding accuracy on test set is %f%%" % (best_C, accuracy_test * 100))
 
 # %% SVM with RBF kernel and grid search
 print("\n\t- SVM with RBF kernel and grid search")
