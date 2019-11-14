@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn.datasets import load_wine
-from sklearn.model_selection import train_test_split, ParameterGrid
+from sklearn.model_selection import train_test_split, ParameterGrid, GridSearchCV, KFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import LinearSVC, SVC
 
@@ -15,8 +15,8 @@ features_train_val, features_test, target_train_val, target_test = train_test_sp
 features_train, features_val, target_train, target_val = train_test_split(features_train_val, target_train_val,
                                                                           test_size=(2 / 7))
 
-# initializing the random seed for better debugging
-np.random.seed(1)
+# initializing the random seed
+# np.random.seed(0)
 
 # step size in the mesh
 h = .02
@@ -201,4 +201,24 @@ print("Best params are C=%f and gamma=%f and corresponding accuracy on test set 
 # %% K-Fold
 print("\n\t- K-Fold")
 
+kf = KFold(n_splits=5)
+clf5 = GridSearchCV(estimator=SVC(), param_grid=param_grid, cv=kf.split(features_train_val), iid=False)
+clf5.fit(features_train_val, target_train_val)
+best_params = clf5.best_params_
 
+# Plot the decision boundaries
+Z = clf5.predict(np.c_[x.ravel(), y.ravel()])
+Z = Z.reshape(x.shape)
+plt.pcolormesh(x, y, Z, cmap=cmap_light)
+
+# Plot the training points
+plt.scatter(features_train[:, 0], features_train[:, 1], c=target_train, cmap=cmap_bold, edgecolor='k', s=20)
+plt.xlim(x.min(), x.max())
+plt.ylim(y.min(), y.max())
+plt.title("SVM with RBF kernel and K-Fold (C = %f, gamma = %f)" % (best_params['C'], best_params['gamma']))
+
+plt.show()
+
+accuracy_test = clf5.score(features_test, target_test)
+print("Best params are C=%f and gamma=%f and corresponding accuracy on test set is %f%%"
+      % (best_params['C'], best_params['gamma'], accuracy_test * 100))
