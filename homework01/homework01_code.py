@@ -111,7 +111,7 @@ best_C = 1
 
 for i, c in enumerate(C):
     # Apply Linear SVM
-    model = LinearSVC(C=c)
+    model = LinearSVC(C=c, random_state=rand)
     model.fit(features_train, target_train)
 
     # Plot the data and tha decision boundaries
@@ -138,7 +138,7 @@ plt.title("Linear SVM accuracy on validation set")
 plt.show()
 
 # Apply Linear SVC with best C on train+val set
-clf2 = LinearSVC(C=best_C)
+clf2 = LinearSVC(C=best_C, random_state=rand)
 clf2.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
@@ -155,7 +155,7 @@ best_C = 1
 
 for i, c in enumerate(C):
     # Apply SVM
-    model = SVC(C=c, gamma='auto', kernel='rbf')
+    model = SVC(C=c, gamma='auto', kernel='rbf', random_state=rand)
     model.fit(features_train, target_train)
 
     # Plot the data and tha decision boundaries
@@ -182,7 +182,7 @@ plt.title("SVM with RBF kernel accuracy on validation set")
 plt.show()
 
 # Apply SVC with best C on train+val set
-clf3 = SVC(C=best_C, gamma='auto', kernel='rbf')
+clf3 = SVC(C=best_C, gamma='auto', kernel='rbf', random_state=rand)
 clf3.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
@@ -201,7 +201,8 @@ C_max = 3
 n_C = 7
 
 # Prepare the parameters grid
-param_grid = {'C': np.logspace(C_min, C_max, n_C), 'gamma': np.logspace(gamma_min, gamma_max, n_g), 'kernel': ['rbf']}
+param_grid = {'C': np.logspace(C_min, C_max, n_C), 'gamma': np.logspace(gamma_min, gamma_max, n_g),
+              'kernel': ['rbf'], 'random_state': [rand]}
 
 best_score = 0
 best_params = {'C': C_min, 'gamma': gamma_min, 'kernel': 'rbf'}
