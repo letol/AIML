@@ -24,17 +24,24 @@ def plot_training_graph(xx, yy, model, X, y):
     plt.ylim(yy.min(), yy.max())
 
 
+# If debug = True random seed is fixed and algorithms results will be always the same.
+# Otherwise, if debug = False, RandomState pseudo-random number generator is used.
+debug = True
+
+if debug:
+    rand = 1
+else:
+    rand = np.random.RandomState()
+
 # %% Initialization
 print("\n\t- Initialization")
 
 all_features, target = load_wine(return_X_y=True)
 features = all_features[:, :2]
-features_train_val, features_test, target_train_val, target_test = train_test_split(features, target, test_size=.3)
-features_train, features_val, target_train, target_val = train_test_split(features_train_val, target_train_val,
-                                                                          test_size=(2 / 7))
-
-# initializing the random seed
-# np.random.seed(0)
+features_train_val, features_test, target_train_val, target_test =\
+    train_test_split(features, target, test_size=.3, random_state=rand)
+features_train, features_val, target_train, target_val =\
+    train_test_split(features_train_val, target_train_val, test_size=(2 / 7), random_state=rand)
 
 # step size in the mesh
 h = .02
@@ -227,7 +234,7 @@ print("Best params are C=%f and gamma=%f and corresponding accuracy on test set 
 print("\n\t- K-Fold")
 
 # Prepare folds
-kf = KFold(n_splits=5)
+kf = KFold(n_splits=5, random_state=rand)
 
 # Perform grid search with cross validation
 clf5 = GridSearchCV(estimator=SVC(), param_grid=param_grid, cv=kf.split(features_train_val), iid=False)
