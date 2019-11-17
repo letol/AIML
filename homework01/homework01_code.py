@@ -4,7 +4,7 @@ from matplotlib.colors import ListedColormap
 from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split, ParameterGrid, GridSearchCV, KFold
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import LinearSVC, SVC
+from sklearn.svm import SVC
 
 
 # color maps
@@ -111,7 +111,7 @@ best_C = 1
 
 for i, c in enumerate(C):
     # Apply Linear SVM
-    model = LinearSVC(C=c, random_state=rand)
+    model = SVC(C=c, kernel='linear', random_state=rand)
     model.fit(features_train, target_train)
 
     # Plot the data and tha decision boundaries
@@ -138,7 +138,7 @@ plt.title("Linear SVM accuracy on validation set")
 plt.show()
 
 # Apply Linear SVC with best C on train+val set
-clf2 = LinearSVC(C=best_C, random_state=rand)
+clf2 = SVC(C=best_C, kernel='linear', random_state=rand)
 clf2.fit(features_train_val, target_train_val)
 
 # Evaluate the model on test set
