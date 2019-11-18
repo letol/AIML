@@ -229,7 +229,7 @@ clf4.fit(features_train_val, target_train_val)
 
 # Plot the data and tha decision boundaries
 plt.figure()
-plot_training_graph(x, y, clf4, features_train, target_train)
+plot_training_graph(x, y, clf4, features_train_val, target_train_val)
 plt.title("SVM with RBF kernel (C = %f, gamma = %f)" % (best_params['C'], best_params['gamma']))
 plt.show()
 
@@ -253,8 +253,8 @@ best_params = clf5.best_params_
 
 # Plot the data and tha decision boundaries
 plt.figure()
-plot_training_graph(x, y, clf5, features_train, target_train)
-plt.title("SVM with RBF and 5-Fold CV (C = %f, gamma = %f)" % (best_params['C'], best_params['gamma']))
+plot_training_graph(x, y, clf5, features_train_val, target_train_val)
+plt.title("SVM with RBF kernel (C = %f, gamma = %f)" % (best_params['C'], best_params['gamma']))
 plt.show()
 
 # Evaluate the best model on test set
