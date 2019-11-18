@@ -192,8 +192,8 @@ print("Best C is %f and corresponding accuracy on test set is %f%%" % (best_C, a
 # %% SVM with RBF kernel and grid search
 print("\n\t- SVM with RBF kernel and grid search")
 
-gamma_min = -7
-gamma_max = -1
+gamma_min = -3
+gamma_max = 3
 n_g = 7
 
 C_min = -3
