@@ -211,6 +211,13 @@ best_params = {'C': C_min, 'gamma': gamma_min, 'kernel': 'rbf'}
 for params in ParameterGrid(param_grid):
     model = SVC(**params)
     model.fit(features_train, target_train)
+
+    # Uncomment these few lines to get more graphs!
+    # plt.figure()
+    # plot_training_graph(x, y, model, features_train, target_train)
+    # plt.title("SVM with RBF kernel (C = %f, gamma = %f)" % (params['C'], params['gamma']))
+    # plt.show()
+
     score = model.score(features_val, target_val)
     if score > best_score:
         best_score = score
