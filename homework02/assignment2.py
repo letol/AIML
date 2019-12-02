@@ -17,6 +17,9 @@ from torchvision.models import alexnet
 from PIL import Image
 from tqdm import tqdm
 
+import caltech_dataset
+
+
 # %%
 """**Set Arguments**"""
 
