@@ -25,7 +25,7 @@ import caltech_dataset
 
 DEVICE = 'cuda'  # 'cuda' or 'cpu'
 
-NUM_CLASSES = 102  # 101 + 1: There is an extra Background class that should be removed
+NUM_CLASSES = 101
 
 BATCH_SIZE = 256
 # Higher batch sizes allows for larger learning rates. An empirical heuristic suggests that, when changing
@@ -70,14 +70,8 @@ if not os.path.isdir('./Homework2-Caltech101'):
 DATA_DIR = 'Homework2-Caltech101/101_ObjectCategories'
 
 # Prepare Pytorch train/test Datasets
-train_dataset = torchvision.datasets.ImageFolder(DATA_DIR, transform=train_transform)
-test_dataset = torchvision.datasets.ImageFolder(DATA_DIR, transform=eval_transform)
-
-train_indexes = [idx for idx in range(len(train_dataset)) if idx % 5]
-test_indexes = [idx for idx in range(len(test_dataset)) if not idx % 5]
-
-train_dataset = Subset(train_dataset, train_indexes)
-test_dataset = Subset(test_dataset, test_indexes)
+train_dataset = caltech_dataset.Caltech(DATA_DIR, split='train', transform=train_transform)
+test_dataset = caltech_dataset.Caltech(DATA_DIR, split='test', transform=eval_transform)
 
 # Check dataset sizes
 print('Train Dataset: {}'.format(len(train_dataset)))
