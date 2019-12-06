@@ -38,7 +38,7 @@ class Caltech(VisionDataset):
 
         image_paths = split_file.readlines()
 
-        folders = []
+        targets = []
         self.images = []
 
         for subpath in image_paths:
@@ -46,10 +46,10 @@ class Caltech(VisionDataset):
             folder = subpath.split("/")[0]
 
             if not folder.startswith('BACKGROUND'):
-                if folder not in folders:
-                    folders.append(folder)
+                if folder not in targets:
+                    targets.append(folder)
 
-                label = folders.index(folder)
+                label = targets.index(folder)
                 path = root + '/' + subpath
 
                 self.images.append((pil_loader(path), label))
@@ -81,3 +81,10 @@ class Caltech(VisionDataset):
         '''
         length = len(self.images)  # Provide a way to get the length (number of elements) of the dataset
         return length
+
+    def targets(self):
+        '''
+        The targets method returns the complete list of associated targets
+        '''
+        targets = [couple[1] for couple in self.images]
+        return targets

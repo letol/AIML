@@ -17,6 +17,9 @@ from torchvision.models import alexnet
 from PIL import Image
 from tqdm import tqdm
 
+import numpy as np
+from sklearn.model_selection import train_test_split
+
 import caltech_dataset
 
 
@@ -73,8 +76,17 @@ DATA_DIR = 'Homework2-Caltech101/101_ObjectCategories'
 train_dataset = caltech_dataset.Caltech(DATA_DIR, split='train', transform=train_transform)
 test_dataset = caltech_dataset.Caltech(DATA_DIR, split='test', transform=eval_transform)
 
+train_idx, valid_idx = train_test_split(np.arange(test_dataset.__len__()),
+                                        test_size=0.5,
+                                        shuffle=True,
+                                        stratify=test_dataset.targets())
+
+train_dataset = Subset(train_dataset, train_idx)
+valid_dataset = Subset(train_dataset, valid_idx)
+
 # Check dataset sizes
 print('Train Dataset: {}'.format(len(train_dataset)))
+print('Validation Dataset: {}'.format(len(valid_dataset)))
 print('Test Dataset: {}'.format(len(test_dataset)))
 
 # %%
@@ -83,6 +95,7 @@ print('Test Dataset: {}'.format(len(test_dataset)))
 # Dataloaders iterate over pytorch datasets and transparently provide useful functions (e.g. parallelization and
 # shuffling)
 train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
+valid_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 
 #%%
