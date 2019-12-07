@@ -19,8 +19,35 @@ from tqdm import tqdm
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-
+import matplotlib.pyplot as plt
 import caltech_dataset
+
+
+def evaluate(net, test_dataset, test_dataloader):
+    '''
+    The evaluate method returns the accuracy of the given model calculated on the test_dataset provided,
+    using the test_dataloader to load the items
+    '''
+    net = net.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
+    net.train(False)  # Set Network to evaluation mode
+
+    running_corrects = 0
+    for images, labels in tqdm(test_dataloader):
+        images = images.to(DEVICE)
+        labels = labels.to(DEVICE)
+
+        # Forward Pass
+        outputs = net(images)
+
+        # Get predictions
+        _, preds = torch.max(outputs.data, 1)
+
+        # Update Corrects
+        running_corrects += torch.sum(preds == labels.data).data.item()
+
+    # Calculate Accuracy
+    accuracy = running_corrects / float(len(test_dataset))
+    return accuracy
 
 
 # %%
@@ -143,6 +170,8 @@ net = net.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
 cudnn.benchmark  # Calling this optimizes runtime
 
 current_step = 0
+accuracies = []
+losses = []
 # Start iterating over the epochs
 for epoch in range(NUM_EPOCHS):
     print('Starting epoch {}/{}, LR = {}'.format(epoch + 1, NUM_EPOCHS, scheduler.get_lr()))
@@ -175,30 +204,33 @@ for epoch in range(NUM_EPOCHS):
 
         current_step += 1
 
+    accuracy = evaluate(net, valid_dataset, valid_dataloader)
+    accuracies.append(accuracy)
+
+    losses.append(loss)
+
     # Step the scheduler
     scheduler.step()
+
+plt.figure()
+plt.title('Accuracies with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.plot(range(NUM_EPOCHS), accuracies)
+plt.show()
+
+plt.figure()
+plt.title('Losses with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.ylim(0, 5)
+plt.plot(range(NUM_EPOCHS), losses)
+plt.show()
 
 # %%
 """**Test**"""
 
-net = net.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
-net.train(False)  # Set Network to evaluation mode
+test_accuracy = evaluate(net, test_dataset, test_dataloader)
 
-running_corrects = 0
-for images, labels in tqdm(test_dataloader):
-    images = images.to(DEVICE)
-    labels = labels.to(DEVICE)
-
-    # Forward Pass
-    outputs = net(images)
-
-    # Get predictions
-    _, preds = torch.max(outputs.data, 1)
-
-    # Update Corrects
-    running_corrects += torch.sum(preds == labels.data).data.item()
-
-# Calculate Accuracy
-accuracy = running_corrects / float(len(test_dataset))
-
-print('Test Accuracy: {}'.format(accuracy))
+print('Test Accuracy: {}'.format(test_accuracy))
