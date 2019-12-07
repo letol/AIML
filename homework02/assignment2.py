@@ -80,14 +80,20 @@ train_transform = transforms.Compose([transforms.Resize(256),  # Resizes short s
                                       # because torchvision's AlexNet needs a 224x224 input! Remember this when
                                       # applying different transformations, otherwise you get an error
                                       transforms.ToTensor(),  # Turn PIL Image to torch.Tensor
-                                      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                                       # Normalizes tensor with mean and standard deviation
+                                      # Till 3.A:
+                                      # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                                      # From 3.B on:
+                                      transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                                       ])
 # Define transforms for the evaluation phase
 eval_transform = transforms.Compose([transforms.Resize(256),
                                      transforms.CenterCrop(224),
                                      transforms.ToTensor(),
-                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                                     # Till 3.A:
+                                     # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                                     # From 3.B on:
+                                     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                                      ])
 
 # %%
@@ -128,6 +134,7 @@ test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False,
 #%%
 """**Prepare Network**"""
 
+# Till 2.C:
 # net = alexnet()  # Loading AlexNet model
 # From 3.A on:
 net = alexnet(pretrained=True)
