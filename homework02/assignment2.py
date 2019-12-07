@@ -128,7 +128,9 @@ test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False,
 #%%
 """**Prepare Network**"""
 
-net = alexnet()  # Loading AlexNet model
+# net = alexnet()  # Loading AlexNet model
+# From 3.A on:
+net = alexnet(pretrained=True)
 
 # AlexNet has 1000 output neurons, corresponding to the 1000 ImageNet's classes
 # We need 101 outputs for Caltech-101
