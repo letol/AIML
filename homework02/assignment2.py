@@ -65,8 +65,8 @@ LR = 1e-2  # The initial Learning Rate
 MOMENTUM = 0.9  # Hyperparameter for SGD, keep this at 0.9 when using SGD
 WEIGHT_DECAY = 5e-5  # Regularization, you can keep this at the default
 
-NUM_EPOCHS = 90  # Total number of training epochs (iterations over dataset)
-STEP_SIZE = 30  # How many epochs before decreasing learning rate (if using a step-down policy)
+NUM_EPOCHS = 30  # Total number of training epochs (iterations over dataset)
+STEP_SIZE = 20  # How many epochs before decreasing learning rate (if using a step-down policy)
 GAMMA = 0.1  # Multiplicative factor for learning rate step-down
 
 LOG_FREQUENCY = 10
@@ -109,10 +109,14 @@ DATA_DIR = 'Homework2-Caltech101/101_ObjectCategories'
 train_dataset = caltech_dataset.Caltech(DATA_DIR, split='train', transform=train_transform)
 test_dataset = caltech_dataset.Caltech(DATA_DIR, split='test', transform=eval_transform)
 
-train_idx, valid_idx = train_test_split(np.arange(test_dataset.__len__()),
+print('Train Dataset: {}'.format(len(train_dataset)))
+print('Test Dataset: {}'.format(len(test_dataset)))
+
+# TODO: sostituire la train_test_plit con specifiche funzioni nella classe
+train_idx, valid_idx = train_test_split(np.arange(train_dataset.__len__()),
                                         test_size=0.5,
                                         shuffle=True,
-                                        stratify=test_dataset.targets())
+                                        stratify=train_dataset.targets())
 
 train_dataset = Subset(train_dataset, train_idx)
 valid_dataset = Subset(train_dataset, valid_idx)
