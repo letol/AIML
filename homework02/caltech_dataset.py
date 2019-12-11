@@ -5,12 +5,39 @@ from PIL import Image
 import os
 import os.path
 import sys
+import random
+
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         img = Image.open(f)
         return img.convert('RGB')
+
+
+def train_valid_split(dataset, num_targets):
+    '''
+    The train_valid_split method splits the training set in training and validation sets and returns them.
+    It aims for half samples of each class in training set and the other half in validation set.
+    Args:
+        dataset (VisionDataset): dataset to be splitted
+        num_targets (int): number of targets present in given dataset
+
+    Returns:
+        tuple: (train_dataset, valid_dataset)
+    '''
+    classes = [[] for i in range(num_targets)]
+    [classes[sample[1]].append(idx) for idx, sample in enumerate(dataset)]
+
+    train_idx = []
+    valid_idx = []
+
+    for c in classes:
+        random.shuffle(c)
+        [train_idx.append(idx) for idx in c if idx % 2]
+        [valid_idx.append(idx) for idx in c if not idx % 2]
+
+    return train_idx, valid_idx
 
 
 class Caltech(VisionDataset):
@@ -38,7 +65,7 @@ class Caltech(VisionDataset):
 
         image_paths = split_file.readlines()
 
-        targets = []
+        self.targets = []
         self.images = []
 
         for subpath in image_paths:
@@ -46,10 +73,10 @@ class Caltech(VisionDataset):
             folder = subpath.split("/")[0]
 
             if not folder.startswith('BACKGROUND'):
-                if folder not in targets:
-                    targets.append(folder)
+                if folder not in self.targets:
+                    self.targets.append(folder)
 
-                label = targets.index(folder)
+                label = self.targets.index(folder)
                 path = root + '/' + subpath
 
                 self.images.append((pil_loader(path), label))
@@ -81,10 +108,3 @@ class Caltech(VisionDataset):
         '''
         length = len(self.images)  # Provide a way to get the length (number of elements) of the dataset
         return length
-
-    def targets(self):
-        '''
-        The targets method returns the complete list of associated targets
-        '''
-        targets = [couple[1] for couple in self.images]
-        return targets

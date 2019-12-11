@@ -21,6 +21,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import caltech_dataset
+from caltech_dataset import train_valid_split
 
 
 def evaluate(net, test_dataset, test_dataloader):
@@ -109,22 +110,18 @@ DATA_DIR = 'Homework2-Caltech101/101_ObjectCategories'
 train_dataset = caltech_dataset.Caltech(DATA_DIR, split='train', transform=train_transform)
 test_dataset = caltech_dataset.Caltech(DATA_DIR, split='test', transform=eval_transform)
 
-print('Train Dataset: {}'.format(len(train_dataset)))
-print('Test Dataset: {}'.format(len(test_dataset)))
+print('train.txt Dataset: {}'.format(len(train_dataset)))
+print('test.txt Dataset: {}\n'.format(len(test_dataset)))
 
-# TODO: sostituire la train_test_plit con specifiche funzioni nella classe
-train_idx, valid_idx = train_test_split(np.arange(train_dataset.__len__()),
-                                        test_size=0.5,
-                                        shuffle=True,
-                                        stratify=train_dataset.targets())
+train_idx, valid_idx = train_valid_split(train_dataset, len(train_dataset.targets))
 
-train_dataset = Subset(train_dataset, train_idx)
 valid_dataset = Subset(train_dataset, valid_idx)
+train_dataset = Subset(train_dataset, train_idx)
 
 # Check dataset sizes
 print('Train Dataset: {}'.format(len(train_dataset)))
 print('Validation Dataset: {}'.format(len(valid_dataset)))
-print('Test Dataset: {}'.format(len(test_dataset)))
+print('Test Dataset: {}\n'.format(len(test_dataset)))
 
 # %%
 """**Prepare Dataloaders**"""
