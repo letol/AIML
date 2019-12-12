@@ -218,6 +218,7 @@ for epoch in range(NUM_EPOCHS):
 
     accuracy = evaluate(net, valid_dataset, valid_dataloader)
     accuracies.append(accuracy)
+    print('Validation Accuracy at epoch {}/{}: {}'.format(epoch + 1, NUM_EPOCHS, accuracy))
 
     losses.append(loss)
 
