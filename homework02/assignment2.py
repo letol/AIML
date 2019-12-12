@@ -25,31 +25,32 @@ from caltech_dataset import train_valid_split
 
 """**Declare Functions**"""
 
-def evaluate(net, test_dataset, test_dataloader):
+
+def evaluate(network, dataset, dataloader):
     '''
     The evaluate method returns the accuracy of the given model calculated on the test_dataset provided,
     using the test_dataloader to load the items
     '''
-    net = net.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
-    net.train(False)  # Set Network to evaluation mode
+    network = network.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
+    network.train(False)  # Set Network to evaluation mode
 
     running_corrects = 0
-    for images, labels in tqdm(test_dataloader):
-        images = images.to(DEVICE)
-        labels = labels.to(DEVICE)
+    for imgs, lbls in tqdm(dataloader):
+        imgs = imgs.to(DEVICE)
+        lbls = lbls.to(DEVICE)
 
         # Forward Pass
-        outputs = net(images)
+        out = network(imgs)
 
         # Get predictions
-        _, preds = torch.max(outputs.data, 1)
+        _, preds = torch.max(out.data, 1)
 
         # Update Corrects
-        running_corrects += torch.sum(preds == labels.data).data.item()
+        running_corrects += torch.sum(preds == lbls.data).data.item()
 
     # Calculate Accuracy
-    accuracy = running_corrects / float(len(test_dataset))
-    return accuracy
+    acc = running_corrects / float(len(dataset))
+    return acc
 
 
 # %%
