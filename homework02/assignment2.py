@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import caltech_dataset
 from caltech_dataset import train_valid_split
 
+"""**Declare Functions**"""
 
 def evaluate(net, test_dataset, test_dataloader):
     '''

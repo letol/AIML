@@ -34,8 +34,9 @@ def train_valid_split(dataset, num_targets):
 
     for c in classes:
         random.shuffle(c)
-        [train_idx.append(idx) for idx in c if idx % 2]
-        [valid_idx.append(idx) for idx in c if not idx % 2]
+        split = int(len(c)/2)
+        [train_idx.append(idx) for idx in c[split:]]
+        [valid_idx.append(idx) for idx in c[:split]]
 
     return train_idx, valid_idx
 
