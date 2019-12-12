@@ -131,7 +131,7 @@ print('Test Dataset: {}\n'.format(len(test_dataset)))
 # Dataloaders iterate over pytorch datasets and transparently provide useful functions (e.g. parallelization and
 # shuffling)
 train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
-valid_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 
 #%%
