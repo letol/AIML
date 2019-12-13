@@ -205,6 +205,7 @@ for epoch in range(NUM_EPOCHS):
 
         # Compute loss based on output and ground truth
         loss = criterion(outputs, labels)
+        losses.append(loss)
 
         # Log loss
         if current_step % LOG_FREQUENCY == 0:
@@ -220,27 +221,27 @@ for epoch in range(NUM_EPOCHS):
     accuracies.append(accuracy)
     print('Validation Accuracy at epoch {}/{}: {}'.format(epoch + 1, NUM_EPOCHS, accuracy))
 
-    losses.append(loss)
-
     # Step the scheduler
     scheduler.step()
 
 plt.figure()
 plt.title('Accuracies with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
 plt.xlabel('Epoch')
-plt.xlim(0, NUM_EPOCHS)
 plt.ylabel('Accuracy')
 plt.ylim(0, 1)
-plt.plot(range(NUM_EPOCHS), accuracies)
+plt.plot(np.arange(1, NUM_EPOCHS+1, 1.0), accuracies)
 plt.show()
 
+steps_per_epoch = len(losses) / NUM_EPOCHS
+xticks_step = 5    # in epochs
 plt.figure()
 plt.title('Losses with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
 plt.xlabel('Epoch')
-plt.xlim(0, NUM_EPOCHS)
+plt.xticks(np.arange(-steps_per_epoch, len(losses) + 1, ((len(losses) + steps_per_epoch) / NUM_EPOCHS) * xticks_step),
+           np.arange(0, NUM_EPOCHS+1, xticks_step))
 plt.ylabel('Loss')
 plt.ylim(0, 5)
-plt.plot(range(NUM_EPOCHS), losses)
+plt.plot(np.arange(1, len(losses)+1, 1.0), losses)
 plt.show()
 
 # %%
