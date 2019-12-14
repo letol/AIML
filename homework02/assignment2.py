@@ -20,6 +20,7 @@ from tqdm import tqdm
 import numpy as np
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+
 import caltech_dataset
 from caltech_dataset import train_valid_split
 
@@ -51,6 +52,21 @@ def evaluate(network, dataset, dataloader):
     # Calculate Accuracy
     acc = running_corrects / float(len(dataset))
     return acc
+
+
+def select_layers(network, layer_class):
+    '''
+    The selectLayers method returns an iterator over the parameters of selected layers
+    Args:
+        network (nn.Module): original network module
+        layer_class (type): class of layers to be selected
+    Returns:
+        Iterator over parameters
+    '''
+    for layer in network.modules():
+        if isinstance(layer, layer_class):
+            for parameter in layer.parameters():
+                yield parameter
 
 
 # %%
@@ -160,8 +176,16 @@ criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 # To access a different set of parameters, you have to access submodules of AlexNet
 # (nn.Module objects, like AlexNet, implement the Composite Pattern)
 # e.g.: parameters of the fully connected layers: net.classifier.parameters()
-# e.g.: parameters of the convolutional layers: look at alexnet's source code ;) 
-parameters_to_optimize = net.parameters()  # In this case we optimize over all the parameters of AlexNet
+# e.g.: parameters of the convolutional layers: look at alexnet's source code ;)
+
+# Till 3.C: In this case we optimize over all the parameters of AlexNet
+# parameters_to_optimize = net.parameters()
+
+# 3.D and from 4.A on: In this case we optimize only the fully connected layers
+parameters_to_optimize = net.classifier.parameters()
+
+# 3.E: In this case we optimize only the convolutional layers
+# parameters_to_optimize = select_layers(net, nn.Conv2d)
 
 # Define optimizer
 # An optimizer updates the weights based on loss
