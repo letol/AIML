@@ -23,6 +23,9 @@ import matplotlib.pyplot as plt
 
 import caltech_dataset
 from caltech_dataset import train_valid_split
+# If low RAM:
+# import caltech_dataset_lowRAM as caltech_dataset
+# from caltech_dataset_lowRAM import train_valid_split
 
 """**Define Functions**"""
 
@@ -184,6 +187,8 @@ print('Test Dataset: {}\n'.format(len(test_dataset)))
 train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
 valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+# If low RAM with TenCrop:
+# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=8)
 
 #%%
 """**Prepare Network**"""
