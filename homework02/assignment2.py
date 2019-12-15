@@ -105,9 +105,9 @@ train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL i
                               # /======================================================================================\
                               # 4.A: Data Augmentation
                               # ----------------------------------------------------------------------------------------
-                              # transforms.RandomHorizontalFlip(),
-                              # transforms.RandomPerspective(distortion_scale=0.2),
-                              # transforms.RandomRotation(degrees=10),
+                              # tr.RandomHorizontalFlip(),
+                              # tr.RandomPerspective(distortion_scale=0.2),
+                              # tr.RandomRotation(degrees=10),
                               # ----------------------------------------------------------------------------------------
                               tr.RandomChoice([tr.RandomHorizontalFlip(),
                                                tr.RandomPerspective(distortion_scale=0.2),
@@ -118,7 +118,7 @@ train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL i
                               # Normalizes tensor with mean and standard deviation
                               # ----------------------------------------------------------------------------------------
                               # Till 3.A:
-                              # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                              # tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                               # ----------------------------------------------------------------------------------------
                               # From 3.B on:
                               tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -138,14 +138,14 @@ eval_transform = tr.Compose([tr.Resize(256),
                                              ))
                                          ]),
                              # -----------------------------------------------------------------------------------------
-                             # transforms.CenterCrop(224),
-                             # transforms.ToTensor(),
+                             # tr.CenterCrop(224),
+                             # tr.ToTensor(),
                              # /=======================================================================================\
                              # Till 3.A:
-                             # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                             # tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                              # -----------------------------------------------------------------------------------------
                              # From 3.B on:
-                             # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                             # tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                              # \=======================================================================================/
                              # \=======================================================================================/
                              ])
