@@ -11,7 +11,7 @@ from torch.utils.data import Subset, DataLoader
 from torch.backends import cudnn
 
 import torchvision
-from torchvision import transforms
+from torchvision import transforms as tr
 from torchvision.models import alexnet
 
 from PIL import Image
@@ -24,10 +24,10 @@ import matplotlib.pyplot as plt
 import caltech_dataset
 from caltech_dataset import train_valid_split
 
-"""**Declare Functions**"""
+"""**Define Functions**"""
 
 
-def evaluate(network, dataset, dataloader):
+def evaluate(network, dataset, dataloader, multiple_crops=False):
     '''
     The evaluate method returns the accuracy of the given model calculated on the test_dataset provided,
     using the test_dataloader to load the items
@@ -40,8 +40,12 @@ def evaluate(network, dataset, dataloader):
         imgs = imgs.to(DEVICE)
         lbls = lbls.to(DEVICE)
 
-        # Forward Pass
-        out = network(imgs)
+        if multiple_crops:
+            bs, ncrops, c, h, w = imgs.size()
+            out = network(imgs.view(-1, c, h, w))  # fuse batch size and ncrops
+            out = out.view(bs, ncrops, -1).mean(1)  # avg over crops
+        else:
+            out = network(imgs)  # Forward Pass
 
         # Get predictions
         _, preds = torch.max(out.data, 1)
@@ -56,7 +60,7 @@ def evaluate(network, dataset, dataloader):
 
 def select_layers(network, layer_class):
     '''
-    The selectLayers method returns an iterator over the parameters of selected layers
+    The select_layers method returns an iterator over the parameters of selected layers
     Args:
         network (nn.Module): original network module
         layer_class (type): class of layers to be selected
@@ -94,26 +98,57 @@ LOG_FREQUENCY = 10
 """**Define Data Preprocessing**"""
 
 # Define transforms for training phase
-train_transform = transforms.Compose([transforms.Resize(256),  # Resizes short size of the PIL image to 256
-                                      transforms.CenterCrop(224),  # Crops a central square patch of the image 224
-                                      # because torchvision's AlexNet needs a 224x224 input! Remember this when
-                                      # applying different transformations, otherwise you get an error
-                                      transforms.ToTensor(),  # Turn PIL Image to torch.Tensor
-                                      # Normalizes tensor with mean and standard deviation
-                                      # Till 3.A:
-                                      # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                                      # From 3.B on:
-                                      transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                                      ])
+train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL image to 256
+                              tr.CenterCrop(224),  # Crops a central square patch of the image 224
+                              # because torchvision's AlexNet needs a 224x224 input! Remember this when
+                              # applying different transformations, otherwise you get an error
+                              # /======================================================================================\
+                              # 4.A: Data Augmentation
+                              # ----------------------------------------------------------------------------------------
+                              # transforms.RandomHorizontalFlip(),
+                              # transforms.RandomPerspective(distortion_scale=0.2),
+                              # transforms.RandomRotation(degrees=10),
+                              # ----------------------------------------------------------------------------------------
+                              tr.RandomChoice([tr.RandomHorizontalFlip(),
+                                               tr.RandomPerspective(distortion_scale=0.2),
+                                               tr.RandomRotation(degrees=10)]),
+                              # \======================================================================================/
+                              tr.ToTensor(),  # Turn PIL Image to torch.Tensor
+                              # /======================================================================================\
+                              # Normalizes tensor with mean and standard deviation
+                              # ----------------------------------------------------------------------------------------
+                              # Till 3.A:
+                              # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                              # ----------------------------------------------------------------------------------------
+                              # From 3.B on:
+                              tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                              # \======================================================================================/
+                              ])
 # Define transforms for the evaluation phase
-eval_transform = transforms.Compose([transforms.Resize(256),
-                                     transforms.CenterCrop(224),
-                                     transforms.ToTensor(),
-                                     # Till 3.A:
-                                     # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                                     # From 3.B on:
-                                     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                                     ])
+eval_transform = tr.Compose([tr.Resize(256),
+                             # /=======================================================================================\
+                             # 4.A: Data Augmentation
+                             # -----------------------------------------------------------------------------------------
+                             tr.Compose([tr.TenCrop(224),
+                                         tr.Lambda(
+                                             lambda crops: torch.stack(
+                                                 [tr.Compose([tr.ToTensor(),
+                                                              tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                                                              ])(crop) for crop in crops]
+                                             ))
+                                         ]),
+                             # -----------------------------------------------------------------------------------------
+                             # transforms.CenterCrop(224),
+                             # transforms.ToTensor(),
+                             # /=======================================================================================\
+                             # Till 3.A:
+                             # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                             # -----------------------------------------------------------------------------------------
+                             # From 3.B on:
+                             # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                             # \=======================================================================================/
+                             # \=======================================================================================/
+                             ])
 
 # %%
 """**Prepare Dataset**"""
@@ -153,10 +188,13 @@ test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False,
 #%%
 """**Prepare Network**"""
 
+# /====================================================================================================================\
 # Till 2.C:
 # net = alexnet()  # Loading AlexNet model
+# ----------------------------------------------------------------------------------------------------------------------
 # From 3.A on:
 net = alexnet(pretrained=True)
+# \====================================================================================================================/
 
 # AlexNet has 1000 output neurons, corresponding to the 1000 ImageNet's classes
 # We need 101 outputs for Caltech-101
@@ -177,15 +215,16 @@ criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 # (nn.Module objects, like AlexNet, implement the Composite Pattern)
 # e.g.: parameters of the fully connected layers: net.classifier.parameters()
 # e.g.: parameters of the convolutional layers: look at alexnet's source code ;)
-
-# Till 3.C: In this case we optimize over all the parameters of AlexNet
+# /====================================================================================================================\
+# Till 3.C and from 4.A on: In this case we optimize over all the parameters of AlexNet
 # parameters_to_optimize = net.parameters()
-
-# 3.D and from 4.A on: In this case we optimize only the fully connected layers
+# ----------------------------------------------------------------------------------------------------------------------
+# 3.D: In this case we optimize only the fully connected layers
 parameters_to_optimize = net.classifier.parameters()
-
+# ----------------------------------------------------------------------------------------------------------------------
 # 3.E: In this case we optimize only the convolutional layers
 # parameters_to_optimize = select_layers(net, nn.Conv2d)
+# \====================================================================================================================/
 
 # Define optimizer
 # An optimizer updates the weights based on loss
@@ -269,8 +308,10 @@ plt.plot(np.arange(1, len(losses)+1, 1.0), losses)
 plt.show()
 
 # %%
+
 """**Test**"""
 
-test_accuracy = evaluate(net, test_dataset, test_dataloader)
+# test_accuracy = evaluate(net, test_dataset, test_dataloader)
+test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
 
 print('Test Accuracy: {}'.format(test_accuracy))
