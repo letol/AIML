@@ -82,7 +82,7 @@ def select_layers(network, layer_class):
 DEVICE = 'cuda'  # 'cuda' or 'cpu'
 
 MODEL_DIR = './models'
-MODEL_NAME = 'model.pth'
+MODEL_NAME = 'model'
 
 NUM_CLASSES = 101
 
@@ -189,9 +189,9 @@ print('Test Dataset: {}\n'.format(len(test_dataset)))
 # shuffling)
 train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
 valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
-test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+# test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 # If low RAM with TenCrop:
-# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
+test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
 
 #%%
 """**Prepare Network**"""
@@ -325,6 +325,7 @@ torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
 net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
 # test_accuracy = evaluate(net, test_dataset, test_dataloader)
+# If TenCrop:
 test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
 
 print('Test Accuracy: {}'.format(test_accuracy))
