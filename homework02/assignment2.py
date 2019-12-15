@@ -191,7 +191,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True
 valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 # If low RAM with TenCrop:
-# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=8)
+# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
 
 #%%
 """**Prepare Network**"""
@@ -320,8 +320,8 @@ if not os.path.isdir(MODEL_DIR):
 torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
 
 # %%
-
 """**Test**"""
+
 net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
 # test_accuracy = evaluate(net, test_dataset, test_dataloader)
