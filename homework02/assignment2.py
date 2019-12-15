@@ -81,6 +81,9 @@ def select_layers(network, layer_class):
 
 DEVICE = 'cuda'  # 'cuda' or 'cpu'
 
+MODEL_DIR = './models'
+MODEL_NAME = 'model.pth'
+
 NUM_CLASSES = 101
 
 BATCH_SIZE = 256
@@ -312,9 +315,14 @@ plt.ylim(0, 5)
 plt.plot(np.arange(1, len(losses)+1, 1.0), losses)
 plt.show()
 
+if not os.path.isdir(MODEL_DIR):
+    os.mkdir(MODEL_DIR)
+torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
+
 # %%
 
 """**Test**"""
+net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
 # test_accuracy = evaluate(net, test_dataset, test_dataloader)
 test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
