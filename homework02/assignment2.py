@@ -1,7 +1,6 @@
 """**Import libraries**"""
 
 import os
-import logging
 import git
 
 import torch
@@ -10,15 +9,12 @@ import torch.optim as optim
 from torch.utils.data import Subset, DataLoader
 from torch.backends import cudnn
 
-import torchvision
 from torchvision import transforms as tr
-from torchvision.models import alexnet
+from torchvision.models import alexnet, resnet18, resnet34, resnet152, vgg11, vgg16, vgg19
 
-from PIL import Image
 from tqdm import tqdm
 
 import numpy as np
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 import caltech_dataset
@@ -82,7 +78,7 @@ def select_layers(network, layer_class):
 DEVICE = 'cuda'  # 'cuda' or 'cpu'
 
 MODEL_DIR = './models'
-MODEL_NAME = 'model'
+MODEL_NAME = 'model.pth'
 
 NUM_CLASSES = 101
 
@@ -135,23 +131,23 @@ eval_transform = tr.Compose([tr.Resize(256),
                              # /=======================================================================================\
                              # 4.A: Data Augmentation
                              # -----------------------------------------------------------------------------------------
-                             tr.Compose([tr.TenCrop(224),
-                                         tr.Lambda(
-                                             lambda crops: torch.stack(
-                                                 [tr.Compose([tr.ToTensor(),
-                                                              tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                                                              ])(crop) for crop in crops]
-                                             ))
-                                         ]),
+                             # tr.Compose([tr.TenCrop(224),
+                             #             tr.Lambda(
+                             #                 lambda crops: torch.stack(
+                             #                     [tr.Compose([tr.ToTensor(),
+                             #                                  tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                             #                                  ])(crop) for crop in crops]
+                             #                 ))
+                             #             ]),
+                             tr.CenterCrop(224),
+                             tr.ToTensor(),
                              # -----------------------------------------------------------------------------------------
-                             # tr.CenterCrop(224),
-                             # tr.ToTensor(),
                              # /=======================================================================================\
                              # Till 3.A:
                              # tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                              # -----------------------------------------------------------------------------------------
                              # From 3.B on:
-                             # tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+                             tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                              # \=======================================================================================/
                              # \=======================================================================================/
                              ])
@@ -189,9 +185,9 @@ print('Test Dataset: {}\n'.format(len(test_dataset)))
 # shuffling)
 train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
 valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
-# test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
 # If low RAM with TenCrop:
-test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
+# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
 
 #%%
 """**Prepare Network**"""
@@ -200,10 +196,19 @@ test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffl
 # Till 2.C:
 # net = alexnet()  # Loading AlexNet model
 # ----------------------------------------------------------------------------------------------------------------------
-# From 3.A on:
+# From 3.A to 4.A:
 net = alexnet(pretrained=True)
+# ----------------------------------------------------------------------------------------------------------------------
+# 5:
+# net = resnet18(pretrained=True)
+# net = resnet34(pretrained=True)
+# net = resnet152(pretrained=True)
+# net = vgg11(pretrained=True)
+# net = vgg16(pretrained=True)
+# net = vgg19(pretrained=True)
 # \====================================================================================================================/
 
+# /====================================================================================================================\
 # AlexNet has 1000 output neurons, corresponding to the 1000 ImageNet's classes
 # We need 101 outputs for Caltech-101
 net.classifier[6] = nn.Linear(4096, NUM_CLASSES)  # nn.Linear in pytorch is a fully connected layer
@@ -211,6 +216,21 @@ net.classifier[6] = nn.Linear(4096, NUM_CLASSES)  # nn.Linear in pytorch is a fu
 
 # We just changed the last layer of AlexNet with a new fully connected layer with 101 outputs
 # It is mandatory to study torchvision.models.alexnet source code
+# ----------------------------------------------------------------------------------------------------------------------
+# 5:
+# ResNet-18:
+# net.fc = resnet18(num_classes=NUM_CLASSES).fc
+# ResNet-34:
+# net.fc = resnet34(num_classes=NUM_CLASSES).fc
+# ResNet-152:
+# net.fc = resnet152(num_classes=NUM_CLASSES).fc
+# VGG-11:
+# net.classifier[6] = vgg11(num_classes=NUM_CLASSES).classifier[6]
+# VGG-16:
+# net.classifier[6] = vgg16(num_classes=NUM_CLASSES).classifier[6]
+# VGG-19:
+# net.classifier[6] = vgg19(num_classes=NUM_CLASSES).classifier[6]
+# \====================================================================================================================/
 
 # %%
 """**Prepare Training**"""
@@ -225,10 +245,10 @@ criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 # e.g.: parameters of the convolutional layers: look at alexnet's source code ;)
 # /====================================================================================================================\
 # Till 3.C and from 4.A on: In this case we optimize over all the parameters of AlexNet
-# parameters_to_optimize = net.parameters()
+parameters_to_optimize = net.parameters()
 # ----------------------------------------------------------------------------------------------------------------------
 # 3.D: In this case we optimize only the fully connected layers
-parameters_to_optimize = net.classifier.parameters()
+# parameters_to_optimize = net.classifier.parameters()
 # ----------------------------------------------------------------------------------------------------------------------
 # 3.E: In this case we optimize only the convolutional layers
 # parameters_to_optimize = select_layers(net, nn.Conv2d)
@@ -324,8 +344,8 @@ torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
 
 net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
-# test_accuracy = evaluate(net, test_dataset, test_dataloader)
+test_accuracy = evaluate(net, test_dataset, test_dataloader)
 # If TenCrop:
-test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
+# test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
 
 print('Test Accuracy: {}'.format(test_accuracy))

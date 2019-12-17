@@ -24,7 +24,7 @@ def train_valid_split(dataset, num_targets):
         num_targets (int): number of targets present in given dataset
 
     Returns:
-        tuple: (train_dataset, valid_dataset)
+        tuple: (train_idx, valid_idx)
     '''
     classes = [[] for i in range(num_targets)]
     [classes[sample[1]].append(idx) for idx, sample in enumerate(dataset)]
@@ -58,9 +58,9 @@ class Caltech(VisionDataset):
         '''
 
         if split == 'train':
-            path = os.path.dirname(root) + '/train.txt'
+            path = os.path.join(os.path.dirname(root), 'train.txt')
         else:
-            path = os.path.dirname(root) + '/test.txt'
+            path = os.path.join(os.path.dirname(root), 'test.txt')
 
         split_file = open(path, 'r')
 
@@ -71,14 +71,14 @@ class Caltech(VisionDataset):
 
         for subpath in image_paths:
             subpath = subpath.replace('\n', '')
-            folder = subpath.split("/")[0]
+            folder = os.path.dirname(subpath)
 
             if not folder.startswith('BACKGROUND'):
                 if folder not in self.targets:
                     self.targets.append(folder)
 
                 label = self.targets.index(folder)
-                path = root + '/' + subpath
+                path = os.path.join(root, subpath)
 
                 self.images.append((path, label))
 
