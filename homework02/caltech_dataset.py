@@ -80,7 +80,7 @@ class Caltech(VisionDataset):
                 label = self.targets.index(folder)
                 path = os.path.join(root, subpath)
 
-                self.imags.append((pil_loader(path), label))
+                self.images.append((pil_loader(path), label))
 
     def __getitem__(self, index):
         '''
