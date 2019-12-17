@@ -30,6 +30,13 @@ def evaluate(network, dataset, dataloader, multiple_crops=False):
     '''
     The evaluate method returns the accuracy of the given model calculated on the test_dataset provided,
     using the test_dataloader to load the items
+    Args:
+        network (nn.Module): network to be evaluated
+        dataset (VisionDataset): test dataset
+        dataloader (DataLoader): test dataset dataloader
+        multiple_crops (bool): Set to True if test dataloader includes multiple crops transfomation (eg.: TenCrop)
+    Returns:
+        accuracy (float)
     '''
     network = network.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
     network.train(False)  # Set Network to evaluation mode
@@ -41,8 +48,8 @@ def evaluate(network, dataset, dataloader, multiple_crops=False):
 
         if multiple_crops:
             bs, ncrops, c, h, w = imgs.size()
-            out = network(imgs.view(-1, c, h, w))  # fuse batch size and ncrops
-            out = out.view(bs, ncrops, -1).mean(1)  # avg over crops
+            out = network(imgs.view(-1, c, h, w))  # Fuse batch size and ncrops
+            out = out.view(bs, ncrops, -1).mean(1)  # Avg over crops
         else:
             out = network(imgs)  # Forward Pass
 
@@ -296,6 +303,8 @@ for epoch in range(NUM_EPOCHS):
 
         # Compute loss based on output and ground truth
         loss = criterion(outputs, labels)
+
+        # Add loss to history
         losses.append(loss)
 
         # Log loss
@@ -308,13 +317,19 @@ for epoch in range(NUM_EPOCHS):
 
         current_step += 1
 
+    # Evaluate the model on validation set
     accuracy = evaluate(net, valid_dataset, valid_dataloader)
+
+    # Add accuracy to history
     accuracies.append(accuracy)
+
+    # Log accuracy
     print('Validation Accuracy at epoch {}/{}: {}'.format(epoch + 1, NUM_EPOCHS, accuracy))
 
     # Step the scheduler
     scheduler.step()
 
+# Plot accuracy history
 plt.figure()
 plt.title('Accuracies with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
 plt.xlabel('Epoch')
@@ -323,6 +338,7 @@ plt.ylim(0, 1)
 plt.plot(np.arange(1, NUM_EPOCHS+1, 1.0), accuracies)
 plt.show()
 
+# Plot loss history
 steps_per_epoch = len(losses) / NUM_EPOCHS
 xticks_step = 5    # in epochs
 plt.figure()
@@ -335,6 +351,7 @@ plt.ylim(0, 5)
 plt.plot(np.arange(1, len(losses)+1, 1.0), losses)
 plt.show()
 
+# Save model
 if not os.path.isdir(MODEL_DIR):
     os.mkdir(MODEL_DIR)
 torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
@@ -342,8 +359,10 @@ torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
 # %%
 """**Test**"""
 
+# Load model
 net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
+# Evaluate the model on test set
 test_accuracy = evaluate(net, test_dataset, test_dataloader)
 # If TenCrop:
 # test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
