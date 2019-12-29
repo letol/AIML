@@ -6,22 +6,18 @@ import git
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Subset, DataLoader
+from torch.utils.data import DataLoader
 from torch.backends import cudnn
 
 from torchvision import transforms as tr
-from torchvision.models import alexnet, resnet18, resnet34, resnet152, vgg11, vgg16, vgg19
+from torchvision.models import alexnet
+from torchvision.datasets import ImageFolder
 
 from tqdm import tqdm
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-import caltech_dataset
-from caltech_dataset import train_valid_split
-# If low RAM:
-# import caltech_dataset_lowRAM as caltech_dataset
-# from caltech_dataset_lowRAM import train_valid_split
 
 """**Define Functions**"""
 
@@ -64,21 +60,6 @@ def evaluate(network, dataset, dataloader, multiple_crops=False):
     return acc
 
 
-def select_layers(network, layer_class):
-    '''
-    The select_layers function returns an iterator over the parameters of selected layers
-    Args:
-        network (nn.Module): original network module
-        layer_class (type): class of layers to be selected
-    Returns:
-        Iterator over parameters
-    '''
-    for layer in network.modules():
-        if isinstance(layer, layer_class):
-            for parameter in layer.parameters():
-                yield parameter
-
-
 # %%
 """**Set Arguments**"""
 
@@ -111,133 +92,57 @@ train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL i
                               tr.CenterCrop(224),  # Crops a central square patch of the image 224
                               # because torchvision's AlexNet needs a 224x224 input! Remember this when
                               # applying different transformations, otherwise you get an error
-                              # /======================================================================================\
-                              # 4.A: Data Augmentation
-                              # ----------------------------------------------------------------------------------------
-                              # tr.RandomHorizontalFlip(),
-                              # tr.RandomPerspective(distortion_scale=0.2),
-                              # tr.RandomRotation(degrees=10),
-                              # ----------------------------------------------------------------------------------------
-                              tr.RandomChoice([tr.RandomHorizontalFlip(),
-                                               tr.RandomPerspective(distortion_scale=0.2),
-                                               tr.RandomRotation(degrees=10)]),
-                              # \======================================================================================/
                               tr.ToTensor(),  # Turn PIL Image to torch.Tensor
-                              # /======================================================================================\
                               # Normalizes tensor with mean and standard deviation
-                              # ----------------------------------------------------------------------------------------
-                              # Till 3.A:
-                              # tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                              # ----------------------------------------------------------------------------------------
-                              # From 3.B on:
                               tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                              # \======================================================================================/
                               ])
 # Define transforms for the evaluation phase
 eval_transform = tr.Compose([tr.Resize(256),
-                             # /=======================================================================================\
-                             # 4.A: Data Augmentation
-                             # -----------------------------------------------------------------------------------------
-                             # tr.Compose([tr.TenCrop(224),
-                             #             tr.Lambda(
-                             #                 lambda crops: torch.stack(
-                             #                     [tr.Compose([tr.ToTensor(),
-                             #                                  tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                             #                                  ])(crop) for crop in crops]
-                             #                 ))
-                             #             ]),
                              tr.CenterCrop(224),
                              tr.ToTensor(),
-                             # -----------------------------------------------------------------------------------------
-                             # /=======================================================================================\
-                             # Till 3.A:
-                             # tr.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                             # -----------------------------------------------------------------------------------------
-                             # From 3.B on:
                              tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                             # \=======================================================================================/
-                             # \=======================================================================================/
                              ])
 
 # %%
 """**Prepare Dataset**"""
 
 # Clone github repository with data
-if not os.path.isdir('./Homework2-Caltech101'):
-    git.cmd.Git().clone("https://github.com/MachineLearning2020/Homework2-Caltech101.git")
+if not os.path.isdir('./Homework3-PACS'):
+    git.cmd.Git().clone("https://github.com/MachineLearning2020/Homework3-PACS.git")
 
-DATA_DIR = 'Homework2-Caltech101/101_ObjectCategories'
+P_DIR = 'Homework3-PACS/PACS/photo'
+A_DIR = 'Homework3-PACS/PACS/art_painting'
+C_DIR = 'Homework3-PACS/PACS/cartoon'
+S_DIR = 'Homework3-PACS/PACS/sketch'
 
 # Prepare Pytorch train/test Datasets
-train_dataset = caltech_dataset.Caltech(DATA_DIR, split='train', transform=train_transform)
-test_dataset = caltech_dataset.Caltech(DATA_DIR, split='test', transform=eval_transform)
-
-print('train.txt Dataset: {}'.format(len(train_dataset)))
-print('test.txt Dataset: {}\n'.format(len(test_dataset)))
-
-train_idx, valid_idx = train_valid_split(train_dataset, len(train_dataset.targets))
-
-valid_dataset = Subset(train_dataset, valid_idx)
-train_dataset = Subset(train_dataset, train_idx)
+photo_dataset = ImageFolder(P_DIR, transform=train_transform)
+art_dataset = ImageFolder(A_DIR, transform=train_transform)
+cartoon_dataset = ImageFolder(C_DIR, transform=eval_transform)
+sketch_dataset = ImageFolder(S_DIR, transform=eval_transform)
 
 # Check dataset sizes
-print('Train Dataset: {}'.format(len(train_dataset)))
-print('Validation Dataset: {}'.format(len(valid_dataset)))
-print('Test Dataset: {}\n'.format(len(test_dataset)))
+print('Photo Dataset: {}'.format(len(photo_dataset)))
+print('Art Painting Dataset: {}'.format(len(art_dataset)))
+print('Cartoon Dataset: {}'.format(len(cartoon_dataset)))
+print('Sketch Dataset: {}\n'.format(len(sketch_dataset)))
 
 # %%
 """**Prepare Dataloaders**"""
 
 # Dataloaders iterate over pytorch datasets and transparently provide useful functions (e.g. parallelization and
 # shuffling)
-train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, drop_last=True)
-valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
-test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
-# If low RAM with TenCrop:
-# test_dataloader = DataLoader(test_dataset, batch_size=int(BATCH_SIZE/10), shuffle=False, num_workers=4)
+photo_dataloader = DataLoader(photo_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, drop_last=True)
+art_dataloader = DataLoader(art_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, drop_last=True)
+cartoon_dataloader = DataLoader(cartoon_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+sketch_dataloader = DataLoader(sketch_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
 #%%
 """**Prepare Network**"""
 
-# /====================================================================================================================\
-# Till 2.C:
-# net = alexnet()  # Loading AlexNet model
-# ----------------------------------------------------------------------------------------------------------------------
-# From 3.A to 4.A:
 net = alexnet(pretrained=True)
-# ----------------------------------------------------------------------------------------------------------------------
-# 5:
-# net = resnet18(pretrained=True)
-# net = resnet34(pretrained=True)
-# net = resnet152(pretrained=True)
-# net = vgg11(pretrained=True)
-# net = vgg16(pretrained=True)
-# net = vgg19(pretrained=True)
-# \====================================================================================================================/
 
-# /====================================================================================================================\
-# AlexNet has 1000 output neurons, corresponding to the 1000 ImageNet's classes
-# We need 101 outputs for Caltech-101
-net.classifier[6] = nn.Linear(4096, NUM_CLASSES)  # nn.Linear in pytorch is a fully connected layer
-# The convolutional layer is nn.Conv2d
-
-# We just changed the last layer of AlexNet with a new fully connected layer with 101 outputs
-# It is mandatory to study torchvision.models.alexnet source code
-# ----------------------------------------------------------------------------------------------------------------------
-# 5:
-# ResNet-18:
-# net.fc = resnet18(num_classes=NUM_CLASSES).fc
-# ResNet-34:
-# net.fc = resnet34(num_classes=NUM_CLASSES).fc
-# ResNet-152:
-# net.fc = resnet152(num_classes=NUM_CLASSES).fc
-# VGG-11:
-# net.classifier[6] = vgg11(num_classes=NUM_CLASSES).classifier[6]
-# VGG-16:
-# net.classifier[6] = vgg16(num_classes=NUM_CLASSES).classifier[6]
-# VGG-19:
-# net.classifier[6] = vgg19(num_classes=NUM_CLASSES).classifier[6]
-# \====================================================================================================================/
+net.classifier[6] = nn.Linear(4096, NUM_CLASSES)
 
 # %%
 """**Prepare Training**"""
@@ -246,20 +151,7 @@ net.classifier[6] = nn.Linear(4096, NUM_CLASSES)  # nn.Linear in pytorch is a fu
 criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 
 # Choose parameters to optimize
-# To access a different set of parameters, you have to access submodules of AlexNet
-# (nn.Module objects, like AlexNet, implement the Composite Pattern)
-# e.g.: parameters of the fully connected layers: net.classifier.parameters()
-# e.g.: parameters of the convolutional layers: look at alexnet's source code ;)
-# /====================================================================================================================\
-# Till 3.C and from 4.A on: In this case we optimize over all the parameters of AlexNet
 parameters_to_optimize = net.parameters()
-# ----------------------------------------------------------------------------------------------------------------------
-# 3.D: In this case we optimize only the fully connected layers
-# parameters_to_optimize = net.classifier.parameters()
-# ----------------------------------------------------------------------------------------------------------------------
-# 3.E: In this case we optimize only the convolutional layers
-# parameters_to_optimize = select_layers(net, nn.Conv2d)
-# \====================================================================================================================/
 
 # Define optimizer
 # An optimizer updates the weights based on loss
@@ -364,7 +256,5 @@ net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
 
 # Evaluate the model on test set
 test_accuracy = evaluate(net, test_dataset, test_dataloader)
-# If TenCrop:
-# test_accuracy = evaluate(net, test_dataset, test_dataloader, multiple_crops=True)
 
 print('Test Accuracy: {}'.format(test_accuracy))
