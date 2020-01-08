@@ -10,15 +10,16 @@ from torch.utils.data import DataLoader
 from torch.backends import cudnn
 
 from torchvision import transforms as tr
-from torchvision.models import alexnet
+from DANN import dann
 from torchvision.datasets import ImageFolder
+from sklearn.model_selection import ParameterGrid
 
 from tqdm import tqdm
-
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
-
+#%%
 """**Define Functions**"""
 
 
@@ -60,36 +61,43 @@ def evaluate(network, dataset, dataloader, multiple_crops=False):
     return acc
 
 
+def get_model_name(params, source_dataset, target_dataset, adapt):
+    model_name = 'model-' + os.path.basename(source_dataset.root) + '_' + os.path.basename(target_dataset.root) + \
+                 '-lr_' + str(10 ** params['lr_exp']) + \
+                 '-step_size_' + str(params['step_size']) + \
+                 '-epochs_' + str(params['num_epochs'])
+    if adapt:
+        model_name = model_name + \
+                     '-alpha_' + str(10 ** params['alpha_exp']) + \
+                     '-adapt'
+    else:
+        model_name = model_name + \
+                     '-no_adapt'
+
+    return model_name.translate(str.maketrans('.', '_')) + '.pt'
+
+
 # %%
 """**Set Arguments**"""
 
 DEVICE = 'cuda'  # 'cuda' or 'cpu'
 
-MODEL_DIR = './models'
-MODEL_NAME = 'model.pth'
+NUM_CLASSES = 7
 
-NUM_CLASSES = 101
-
-BATCH_SIZE = 256
+BATCH_SIZE = 64
 # Higher batch sizes allows for larger learning rates. An empirical heuristic suggests that, when changing
 # the batch size, learning rate should change by the same factor to have comparable results
 
-LR = 1e-2  # The initial Learning Rate
-MOMENTUM = 0.9  # Hyperparameter for SGD, keep this at 0.9 when using SGD
-WEIGHT_DECAY = 5e-5  # Regularization, you can keep this at the default
-
-NUM_EPOCHS = 30  # Total number of training epochs (iterations over dataset)
-STEP_SIZE = 20  # How many epochs before decreasing learning rate (if using a step-down policy)
-GAMMA = 0.1  # Multiplicative factor for learning rate step-down
-
 LOG_FREQUENCY = 10
 
-# %%
+MODEL_DIR = './models_64'
+
+#%%
 """**Define Data Preprocessing**"""
 
 # Define transforms for training phase
-train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL image to 256
-                              tr.CenterCrop(224),  # Crops a central square patch of the image 224
+train_transform = tr.Compose([tr.Resize(224),  # Resizes short size of the PIL image to 256
+                              # tr.CenterCrop(224),  # Crops a central square patch of the image 224
                               # because torchvision's AlexNet needs a 224x224 input! Remember this when
                               # applying different transformations, otherwise you get an error
                               tr.ToTensor(),  # Turn PIL Image to torch.Tensor
@@ -97,8 +105,8 @@ train_transform = tr.Compose([tr.Resize(256),  # Resizes short size of the PIL i
                               tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                               ])
 # Define transforms for the evaluation phase
-eval_transform = tr.Compose([tr.Resize(256),
-                             tr.CenterCrop(224),
+eval_transform = tr.Compose([tr.Resize(224),
+                             # tr.CenterCrop(224),
                              tr.ToTensor(),
                              tr.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
                              ])
@@ -137,124 +145,414 @@ art_dataloader = DataLoader(art_dataset, batch_size=BATCH_SIZE, shuffle=True, nu
 cartoon_dataloader = DataLoader(cartoon_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 sketch_dataloader = DataLoader(sketch_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
-#%%
-"""**Prepare Network**"""
-
-net = alexnet(pretrained=True)
-
-net.classifier[6] = nn.Linear(4096, NUM_CLASSES)
 
 # %%
 """**Prepare Training**"""
 
-# Define loss function
-criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 
-# Choose parameters to optimize
-parameters_to_optimize = net.parameters()
+def training(model, source_dataset, source_dataloader, target_dataset, target_dataloader, params, adaptation=False, evalu=True, cache=True):
+    if cache:
+        model_name = get_model_name(params, source_dataset, target_dataset, adaptation)
+        # If already computed, load model
+        if os.path.exists(os.path.join(MODEL_DIR, model_name)):
+            print("Pre-trained model found!")
+            model = torch.load(os.path.join(MODEL_DIR, model_name))
+            return model['net'], model['losses'], model['accuracies']
 
-# Define optimizer
-# An optimizer updates the weights based on loss
-# We use SGD with momentum
-optimizer = optim.SGD(parameters_to_optimize, lr=LR, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)
+    if params['step_size'] > params['num_epochs']:
+        print("step_size > num_epochs! => next")
+        return None, None, None
 
-# Define scheduler
-# A scheduler dynamically changes learning rate
-# The most common schedule is the step(-down), which multiplies learning rate by gamma every STEP_SIZE epochs
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=STEP_SIZE, gamma=GAMMA)
+    # Define loss function
+    criterion = nn.CrossEntropyLoss()  # for classification, we use Cross Entropy
 
-# %%
-"""**Train**"""
+    # Choose parameters to optimize
+    parameters_to_optimize = model.parameters()
 
-# By default, everything is loaded to cpu
-net = net.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
+    # Define optimizer
+    # An optimizer updates the weights based on loss
+    # We use SGD with momentum
+    optimizer = optim.SGD(parameters_to_optimize, lr=(10**params['lr_exp']), momentum=params['momentum'], weight_decay=params['weight_decay'])
 
-cudnn.benchmark  # Calling this optimizes runtime
+    # Define scheduler
+    # A scheduler dynamically changes learning rate
+    # The most common schedule is the step(-down), which multiplies learning rate by gamma every STEP_SIZE epochs
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=params['step_size'], gamma=params['gamma'])
 
-current_step = 0
-accuracies = []
-losses = []
-# Start iterating over the epochs
-for epoch in range(NUM_EPOCHS):
-    print('Starting epoch {}/{}, LR = {}'.format(epoch + 1, NUM_EPOCHS, scheduler.get_lr()))
+    # By default, everything is loaded to cpu
+    net = model.to(DEVICE)  # this will bring the network to GPU if DEVICE is cuda
 
-    # Iterate over the dataset
-    for images, labels in train_dataloader:
-        # Bring data over the device of choice
-        images = images.to(DEVICE)
-        labels = labels.to(DEVICE)
+    cudnn.benchmark  # Calling this optimizes runtime
 
-        net.train()  # Sets module in training mode
+    current_step = 0
+    source_accuracies = []
+    target_accuracies = []
+    ly_losses = []
+    ld_source_losses = []
+    ld_target_losses = []
 
-        # PyTorch, by default, accumulates gradients after each backward pass
-        # We need to manually set the gradients to zero before starting a new iteration
-        optimizer.zero_grad()  # Zero-ing the gradients
+    # Start iterating over the epochs
+    for epoch in range(params['num_epochs']):
+        print('Starting epoch {}/{}, LR = {}'.format(epoch + 1, params['num_epochs'], scheduler.get_lr()))
 
-        # Forward pass to the network
-        outputs = net(images)
+        if adaptation:
+            target_dataloader_iterator = iter(target_dataloader)
 
-        # Compute loss based on output and ground truth
-        loss = criterion(outputs, labels)
+        # Iterate over the dataset
+        for images, labels in source_dataloader:
+            # Bring data over the device of choice
+            images = images.to(DEVICE)
+            labels = labels.to(DEVICE)
+            zeros = torch.zeros_like(labels)
+            ones = torch.ones_like(labels)
 
-        # Add loss to history
-        losses.append(loss)
+            net.train()  # Sets module in training mode
 
-        # Log loss
-        if current_step % LOG_FREQUENCY == 0:
-            print('Step {}, Loss {}'.format(current_step, loss.item()))
+            # PyTorch, by default, accumulates gradients after each backward pass
+            # We need to manually set the gradients to zero before starting a new iteration
+            optimizer.zero_grad()  # Zero-ing the gradients
 
-        # Compute gradients for each layer and update weights
-        loss.backward()  # backward pass: computes gradients
-        optimizer.step()  # update weights based on accumulated gradients
+            # Forward pass source images to the Gy branch of the network
+            outputs = net(images)
 
-        current_step += 1
+            # Compute Ly loss based on output and ground truth
+            ly_loss = criterion(outputs, labels)
+            if math.isnan(ly_loss):
+                print("NaN Loss! => next")
+                return None, None, None
 
-    # Evaluate the model on validation set
-    accuracy = evaluate(net, valid_dataset, valid_dataloader)
+            # Add Ly loss to history
+            ly_losses.append(ly_loss)
 
-    # Add accuracy to history
-    accuracies.append(accuracy)
+            # Compute gradients for each layer and update weights
+            ly_loss.backward()  # backward pass: computes gradients
 
-    # Log accuracy
-    print('Validation Accuracy at epoch {}/{}: {}'.format(epoch + 1, NUM_EPOCHS, accuracy))
+            # Log Ly loss
+            if current_step % LOG_FREQUENCY == 0:
+                print('Step {}, Gy Loss {}'.format(current_step, ly_loss.item()))
 
-    # Step the scheduler
-    scheduler.step()
+            if adaptation:
+                # Forward pass source images to the Gd branch of the network
+                outputs = net(images, alpha=10**params['alpha_exp'])
 
-# Plot accuracy history
+                # Compute source images Ld loss based on output and ground truth (all zeros)
+                ld_source_loss = criterion(outputs, zeros)
+                if math.isnan(ld_source_loss):
+                    print("NaN Loss! => next")
+                    return None, None, None
+
+                # Add source images Ld loss to history
+                ld_source_losses.append(ld_source_loss)
+
+                # Compute gradients for each layer and update weights
+                ld_source_loss.backward()  # backward pass: computes gradients
+
+                # Get target dataset batch
+                images, _ = next(target_dataloader_iterator)
+                images = images.to(DEVICE)
+
+                # Forward pass target images to the Gd branch of the network
+                outputs = net(images, alpha=10**params['alpha_exp'])
+
+                # Compute target images Ld loss based on output and ground truth (all ones)
+                ld_target_loss = criterion(outputs, ones)
+                if math.isnan(ld_target_loss):
+                    print("NaN Loss! => next")
+                    return None, None, None
+
+                # Add target images Ld loss to history
+                ld_target_losses.append(ld_target_loss)
+
+                # Compute gradients for each layer and update weights
+                ld_target_loss.backward()  # backward pass: computes gradients
+
+                # Log Gd losses
+                if current_step % LOG_FREQUENCY == 0:
+                    print('Step {}, Gd Source Loss {}'.format(current_step, ld_source_loss.item()))
+                    print('Step {}, Gd Target Loss {}'.format(current_step, ld_target_loss.item()))
+
+            optimizer.step()  # update weights based on accumulated gradients
+
+            current_step += 1
+
+        # Evaluate the model on validation set
+        if evalu:
+            source_accuracy = evaluate(net, source_dataset, source_dataloader)
+            target_accuracy = evaluate(net, target_dataset, target_dataloader)
+
+            # Add accuracy to history
+            source_accuracies.append(source_accuracy)
+            target_accuracies.append(target_accuracy)
+
+            # Log accuracy
+            print('Source/Target Accuracy at epoch {}/{}: {}/{}'.format(epoch + 1, params['num_epochs'], source_accuracy, target_accuracy))
+
+        # Step the scheduler
+        scheduler.step()
+
+    losses = {'ly': ly_losses, 'ld_source': ld_source_losses, 'ld_target': ld_target_losses}
+    accuracies = {'source': source_accuracies, 'target': target_accuracies}
+
+    # Save Model
+    if cache:
+        if not os.path.isdir(MODEL_DIR):
+            os.mkdir(MODEL_DIR)
+        torch.save({'net': net, 'losses': losses, 'accuracies': accuracies}, os.path.join(MODEL_DIR, model_name))
+
+    return net, losses, accuracies
+
+
+#%%
+"""**Prepare Grid Search**"""
+
+
+def grid_search(param_grid, adapt):
+    param_list = list(ParameterGrid(param_grid))
+
+    best_params = None
+    best_acc_avg = 0
+    best_losses = {'cartoon': None, 'sketch': None}
+    best_accuracies = {'cartoon': None, 'sketch': None}
+
+    for it, params in enumerate(param_list, start=1):
+        print("params {}/{}: {}".format(it, len(param_list), params))
+
+        print("Starting Photo to Cartoon training")
+        model = dann(pretrained=True)
+        model.classifier[6] = nn.Linear(4096, NUM_CLASSES)
+        model, cartoon_losses, cartoon_accuracies = training(model,
+                                                             photo_dataset, photo_dataloader,
+                                                             cartoon_dataset, cartoon_dataloader,
+                                                             params,
+                                                             adaptation=adapt)
+        if model is None:
+            continue
+
+        print("Starting Photo to Sketch training")
+        model = dann(pretrained=True)
+        model.classifier[6] = nn.Linear(4096, NUM_CLASSES)
+        model, sketch_losses, sketch_accuracies = training(model,
+                                                           photo_dataset, photo_dataloader,
+                                                           sketch_dataset, sketch_dataloader,
+                                                           params,
+                                                           adaptation=adapt)
+        if model is None:
+            continue
+
+        print("Target Accuracy Photo-Cartoon: {}".format(cartoon_accuracies['target'][-1]))
+        print("Target Accuracy Photo-Sketch: {}".format(sketch_accuracies['target'][-1]))
+
+        acc_avg = float((cartoon_accuracies['target'][-1] + sketch_accuracies['target'][-1]) / 2)
+
+        print("Average Accuracy: {}".format(acc_avg))
+
+        if acc_avg > best_acc_avg:
+            print("New best params found!")
+            best_params = params
+            best_acc_avg = acc_avg
+            best_losses['cartoon'] = cartoon_losses
+            best_accuracies['cartoon'] = cartoon_accuracies
+            best_losses['sketch'] = sketch_losses
+            best_accuracies['sketch'] = sketch_accuracies
+
+    return best_params, best_losses, best_accuracies
+
+
+#%%
+"""**Grid Search without Adaptation**"""
+
+param_grid = {'lr_exp': [-1, -2, -3],  # The initial Learning Rate
+              'momentum': [0.9],  # Hyperparameter for SGD, keep this at 0.9 when using SGD
+              'weight_decay': [5e-5],  # Regularization, you can keep this at the default
+              'num_epochs': [10, 20, 30],   # Total number of training epochs (iterations over dataset)
+              'step_size': [10, 20, 30],  # How many epochs before decreasing learning rate (if using a step-down policy)
+              'gamma': [0.1]}  # Multiplicative factor for learning rate step-down
+
+best_params, valid_losses, valid_accuracies = grid_search(param_grid, adapt=False)
+
+print("Best params: {}".format(best_params))
+
+#%%
+"""**Train without Adaptation**"""
+
+model = dann(pretrained=True)
+
+model.classifier[6] = nn.Linear(4096, NUM_CLASSES)
+
+trained_model_no_adapt, losses, _ = training(model,
+                                             photo_dataset, photo_dataloader,
+                                             art_dataset, art_dataloader,
+                                             best_params,
+                                             adaptation=False,
+                                             evalu=False)
+
+#%%
+"""**Some plots**"""
+
+#Plot Photo-Cartoon accuracy history
 plt.figure()
-plt.title('Accuracies with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
+plt.title('Photo-Cartoon Accuracies with LR={}, STEP_SIZE={}'.format(10**best_params['lr_exp'], best_params['step_size']))
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.ylim(0, 1)
-plt.plot(np.arange(1, NUM_EPOCHS+1, 1.0), accuracies)
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['cartoon']['source'], 'b', label='source')
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['cartoon']['target'], 'g', label='target')
 plt.show()
 
-# Plot loss history
-steps_per_epoch = len(losses) / NUM_EPOCHS
+#Plot Photo-Sketch accuracy history
+plt.figure()
+plt.title('Photo-Sketch Accuracies with LR={}, STEP_SIZE={}'.format(10**best_params['lr_exp'], best_params['step_size']))
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['sketch']['source'], 'b', label='source')
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['sketch']['target'], 'g', label='target')
+plt.legend()
+plt.show()
+
+# Plot Photo-Cartoon loss history
+steps_per_epoch = len(valid_losses['cartoon']['ly']) / best_params['num_epochs']
 xticks_step = 5    # in epochs
 plt.figure()
-plt.title('Losses with LR={}, STEP_SIZE={}'.format(LR, STEP_SIZE))
+plt.title('Photo-Cartoon Losses with LR={}, STEP_SIZE={}'.format(10**best_params['lr_exp'], best_params['step_size']))
 plt.xlabel('Epoch')
-plt.xticks(np.arange(-steps_per_epoch, len(losses) + 1, ((len(losses) + steps_per_epoch) / NUM_EPOCHS) * xticks_step),
-           np.arange(0, NUM_EPOCHS+1, xticks_step))
+plt.xticks(np.arange(-steps_per_epoch, len(valid_losses['cartoon']['ly']) + 1, ((len(valid_losses['cartoon']['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
 plt.ylabel('Loss')
-plt.ylim(0, 5)
-plt.plot(np.arange(1, len(losses)+1, 1.0), losses)
+plt.plot(np.arange(1, len(valid_losses['cartoon']['ly']) + 1, 1.0), valid_losses['cartoon']['ly'], 'b', label='Ly')
+plt.legend()
 plt.show()
 
-# Save model
-if not os.path.isdir(MODEL_DIR):
-    os.mkdir(MODEL_DIR)
-torch.save(net, os.path.join(MODEL_DIR, MODEL_NAME))
+# Plot Photo-Sketch loss history
+steps_per_epoch = len(valid_losses['sketch']['ly']) / best_params['num_epochs']
+xticks_step = 5    # in epochs
+plt.figure()
+plt.title('Photo-Sketch Losses with LR={}, STEP_SIZE={}'.format(10**best_params['lr_exp'], best_params['step_size']))
+plt.xlabel('Epoch')
+plt.xticks(np.arange(-steps_per_epoch, len(valid_losses['sketch']['ly']) + 1, ((len(valid_losses['sketch']['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
+plt.ylabel('Loss')
+plt.plot(np.arange(1, len(valid_losses['sketch']['ly']) + 1, 1.0), valid_losses['sketch']['ly'], 'b', label='Ly')
+plt.legend()
+plt.show()
 
-# %%
+# Plot Photo-Art loss history
+steps_per_epoch = len(losses['ly']) / best_params['num_epochs']
+xticks_step = 5    # in epochs
+plt.figure()
+plt.title('Photo-Art Losses with LR={}, STEP_SIZE={}'.format(10**best_params['lr_exp'], best_params['step_size']))
+plt.xlabel('Epoch')
+plt.xticks(np.arange(-steps_per_epoch, len(losses['ly']) + 1, ((len(losses['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
+plt.ylabel('Loss')
+plt.plot(np.arange(1, len(losses['ly']) + 1, 1.0), losses['ly'], 'b', label='Ly')
+plt.legend()
+plt.show()
+
+#%%
+"""**Grid Search with Adaptation**"""
+
+param_grid = {'lr_exp': [-1, -2, -3],  # The initial Learning Rate
+              'momentum': [0.9],  # Hyperparameter for SGD, keep this at 0.9 when using SGD
+              'weight_decay': [5e-5],  # Regularization, you can keep this at the default
+              'alpha_exp': [-1, -2, -3, -4, -5],  # Weight of reversed backpropagation
+              'num_epochs': [10, 20, 30],   # Total number of training epochs (iterations over dataset)
+              'step_size': [10, 20, 30],  # How many epochs before decreasing learning rate (if using a step-down policy)
+              'gamma': [0.1]}  # Multiplicative factor for learning rate step-down
+
+best_params, valid_losses, valid_accuracies = grid_search(param_grid, adapt=True)
+
+print("Best params: {}".format(best_params))
+
+#%%
+"""**Train with Adaptation**"""
+
+model = dann(pretrained=True)
+
+model.classifier[6] = nn.Linear(4096, NUM_CLASSES)
+
+trained_model_adapt, losses, _ = training(model,
+                                          photo_dataset, photo_dataloader,
+                                          art_dataset, art_dataloader,
+                                          best_params,
+                                          adaptation=True,
+                                          evalu=False)
+
+#%%
+"""**Some other plots**"""
+
+#Plot Photo-Cartoon accuracy history
+plt.figure()
+plt.title('Photo-Cartoon Accuracies with LR={}, STEP_SIZE={}, ALPHA={}'.format(10**best_params['lr_exp'], best_params['step_size'], 10**best_params['alpha_exp']))
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['cartoon']['source'], 'b', label='source')
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['cartoon']['target'], 'g', label='target')
+plt.show()
+
+#Plot Photo-Sketch accuracy history
+plt.figure()
+plt.title('Photo-Sketch Accuracies with LR={}, STEP_SIZE={}, ALPHA={}'.format(10**best_params['lr_exp'], best_params['step_size'], 10**best_params['alpha_exp']))
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['sketch']['source'], 'b', label='source')
+plt.plot(np.arange(1, best_params['num_epochs']+1, 1.0), valid_accuracies['sketch']['target'], 'g', label='target')
+plt.legend()
+plt.show()
+
+# Plot Photo-Cartoon loss history
+steps_per_epoch = len(valid_losses['cartoon']['ly']) / best_params['num_epochs']
+xticks_step = 5    # in epochs
+plt.figure()
+plt.title('Photo-Cartoon Losses with LR={}, STEP_SIZE={}, ALPHA={}'.format(10**best_params['lr_exp'], best_params['step_size'], 10**best_params['alpha_exp']))
+plt.xlabel('Epoch')
+plt.xticks(np.arange(-steps_per_epoch, len(valid_losses['cartoon']['ly']) + 1, ((len(valid_losses['cartoon']['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
+plt.ylabel('Loss')
+plt.plot(np.arange(1, len(valid_losses['cartoon']['ly']) + 1, 1.0), valid_losses['cartoon']['ly'], 'b', label='Ly')
+plt.plot(np.arange(1, len(valid_losses['cartoon']['ld_source']) +1, 1.0), valid_losses['cartoon']['ld_source'], 'g', label='Ld Source')
+plt.plot(np.arange(1, len(valid_losses['cartoon']['ld_target']) +1, 1.0), valid_losses['cartoon']['ld_target'], 'r', label='Ld Target')
+plt.legend()
+plt.show()
+
+# Plot Photo-Sketch loss history
+steps_per_epoch = len(valid_losses['sketch']['ly']) / best_params['num_epochs']
+xticks_step = 5    # in epochs
+plt.figure()
+plt.title('Photo-Sketch Losses with LR={}, STEP_SIZE={}, ALPHA={}'.format(10**best_params['lr_exp'], best_params['step_size'], 10**best_params['alpha_exp']))
+plt.xlabel('Epoch')
+plt.xticks(np.arange(-steps_per_epoch, len(valid_losses['sketch']['ly']) + 1, ((len(valid_losses['sketch']['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
+plt.ylabel('Loss')
+plt.plot(np.arange(1, len(valid_losses['sketch']['ly']) + 1, 1.0), valid_losses['sketch']['ly'], 'b', label='Ly')
+plt.plot(np.arange(1, len(valid_losses['sketch']['ld_source']) +1, 1.0), valid_losses['sketch']['ld_source'], 'g', label='Ld Source')
+plt.plot(np.arange(1, len(valid_losses['sketch']['ld_target']) +1, 1.0), valid_losses['sketch']['ld_target'], 'r', label='Ld Target')
+plt.legend()
+plt.show()
+
+# Plot Photo-Art loss history
+steps_per_epoch = len(losses['ly']) / best_params['num_epochs']
+xticks_step = 5    # in epochs
+plt.figure()
+plt.title('Photo-Art Losses with LR={}, STEP_SIZE={}, ALPHA={}'.format(10**best_params['lr_exp'], best_params['step_size'], 10**best_params['alpha_exp']))
+plt.xlabel('Epoch')
+plt.xticks(np.arange(-steps_per_epoch, len(losses['ly']) + 1, ((len(losses['ly']) + steps_per_epoch) / best_params['num_epochs']) * xticks_step),
+           np.arange(0, best_params['num_epochs']+1, xticks_step))
+plt.ylabel('Loss')
+plt.plot(np.arange(1, len(losses['ly']) + 1, 1.0), losses['ly'], 'b', label='Ly')
+plt.plot(np.arange(1, len(losses['ld_source']) +1, 1.0), losses['ld_source'], 'g', label='Ld Source')
+plt.plot(np.arange(1, len(losses['ld_target']) +1, 1.0), losses['ld_target'], 'r', label='Ld Target')
+plt.legend()
+plt.show()
+
+#%%
 """**Test**"""
 
-# Load model
-net = torch.load(os.path.join(MODEL_DIR, MODEL_NAME))
-
 # Evaluate the model on test set
-test_accuracy = evaluate(net, test_dataset, test_dataloader)
+test_accuracy_no_adapt = evaluate(trained_model_no_adapt, art_dataset, art_dataloader)
+test_accuracy_adapt = evaluate(trained_model_adapt, art_dataset, art_dataloader)
 
-print('Test Accuracy: {}'.format(test_accuracy))
+print('Test Accuracy without Adaptation: {}'.format(test_accuracy_no_adapt))
+print('Test Accuracy with Adaptation: {}'.format(test_accuracy_adapt))
